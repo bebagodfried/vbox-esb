@@ -1,0 +1,179 @@
+#!/bin/bash
+# 
+# Name: VirtualBox - ESB v1.0.0
+# Description: VirtualBox patch for: EFI Secure Boot, vboxdrv, modprob and common errors as (rc=-1908)
+# Copyright (C) 2023 - Beba Godfried.
+# This program may be freely redistributed under the terms of the GNU GPL
+#
+
+# Format
+Y='\033[0;33m'  # color: brown
+R='\033[0;31m'  # color: red
+G='\033[0;32m'  # color: green
+
+B='\033[1m'     # font: 600
+A='\033[0m'     # automatic (reset)
+clear
+
+# initialization
+version='1.0.0'
+
+echo -e "${Y}${B}[ VirtualBox ESB 1.0 by @bebagodfried - GitHub ]${A}${A}"
+echo -e "${Y}EFI Secure Boot pacth on VirtualBox:$(VBoxManage --version)${A}"
+echo
+
+# Functions
+# - Start
+start() {
+  PID=$1
+
+  # initialization
+  clear
+  echo -e "${Y}${B}[ VirtualBox ESB 1.0 by @bebagodfried - GitHub ]${A}${A}"
+  echo -e "${Y}EFI Secure Boot pacth on VirtualBox:$(VBoxManage --version)${A}"
+  echo
+}
+
+# - Set timeout
+timeout() {
+  timer=$1
+
+  if [[ $timer != '' && $timer != 0 ]];then
+    read -t $timer esc
+    
+  else
+    read esc
+  fi
+}
+
+# - Check for connection
+is_connected() {
+  # Set the target host to ping
+  target_host="8.8.8.8"
+
+  # Ping the target host
+  ping -c 1 $target_host > /dev/null
+}
+
+# 
+## Step 1
+# -Check if the script is running with root privileges
+if [[ $(id -u) != 0 ]]; then
+  clear
+  start
+  echo -e "${Y}${B}[WARNING]${A} Premission denied${A} - (Continue as $USER)"
+  echo
+
+  sudo id -u >> /dev/null
+fi
+
+if ! is_connected; then
+  clear
+  start
+  echo -e "${R}${B}[ERROR]${A}${A} No Internet avalaible. Check your network connection"
+  echo
+  
+  exit 1
+
+  else
+  start
+fi
+
+# -Check if VirtualBox is installed
+if ! command -v VBoxManage > /dev/null; then
+  clear
+  start
+  echo -e "${ERROR}${B}[ERROR]${ERROR}${A} VirtualBox is not installed. Please install it first"
+  echo
+
+  exit 1
+fi
+
+## Step 2
+# -System base
+if command -v apt-get > /dev/null; then
+  pkg=apt-get #> APT (Debian-based systems)
+
+elif command -v yum > /dev/null; then
+  pkg=yum #> YUM (Red Hat-based systems)
+
+elif command -v dnf > /dev/null; then
+  pkg=dnf #> DNF (Fedora-based systems)
+
+elif command -v zypper > /dev/null; then
+  pkg=zypper #> Zypper (SUSE-based systems)
+
+else
+  clear
+  start
+  echo -e "${ERROR}${B}[ERROR]${ERROR}${A} Unable to detect your package manager. Probably not supported!"
+  echo
+
+  exit 1
+fi
+
+# Rebuild VirtualBox kernel modules
+echo "Rebuilding VirtualBox kernel modules..."
+if ! sudo /sbin/vboxconfig > /dev/null; then
+  clear
+  start
+  echo -e "${ERROR}${B}[ERROR]${ERROR}${A} Failed to rebuild VirtualBox kernel modules."
+  echo
+
+  exit 1
+fi
+
+# Check for and install required dependencies
+start
+echo -e "Rebuilding VirtualBox kernel modules... ${G}Ok${A}"
+echo "Checking for required dependencies..."
+if [[ $pkg == 'dnf' || $pkg == 'yum' ]]; then
+  # fedora & RHEL Systems
+  if ! sudo $pkg -y install kernel-devel-$(uname -r) gcc > /dev/null; then
+    # clear
+    # echo -e "${B}VirtualBox - ESB v1.0.0${A}"
+    echo -e "${ERROR}${B}[ERROR]${ERROR}${A} Failed to install required dependencies."
+    echo
+
+    exit 1
+  fi
+
+else
+  # Other Systems
+  if ! $pkg -y install linux-headers-$(uname -r) build-essential > /dev/null; then
+    # clear
+    # echo -e "${B}VirtualBox - ESB v1.0.0${A}"
+    echo -e "${ERROR}${B}[ERROR]${ERROR}${A} Failed to install required dependencies."
+    echo
+
+    exit 1
+  fi
+fi
+
+# Attempt to load VirtualBox kernel modules
+start
+echo -e "Rebuilding VirtualBox kernel modules... ${G}Ok${A}"
+echo -e "Checking for required dependencies..... ${G}Ok${A}"
+echo "Loading VirtualBox kernel modules..."
+if ! sudo modprobe vboxdrv > /dev/null; then
+  clear
+  start
+  echo -e "${ERROR}${B}[ERROR]${ERROR}${A} Failed to load VirtualBox kernel modules."
+  echo
+
+  exit 1
+fi
+
+# User grants
+sudo usermod -aG vboxusers,vboxsf $USER
+
+# Repport
+start
+echo -e "Rebuilding VirtualBox kernel modules... ${G}Ok${A}"
+echo -e "Checking for required dependencies..... ${G}Ok${A}"
+echo -e "Loading VirtualBox kernel  modules..... ${G}Ok${A}"
+echo -e "Grant user on vboxusers,vboxsf......... ${G}Ok${A}"
+echo
+echo -e "${B}${G}[SUCCESS]${A}${A} VirtualBox patched successfully."
+
+timeout 0
